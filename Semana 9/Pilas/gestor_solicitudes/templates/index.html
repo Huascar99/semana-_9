@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Solicitudes: Pilas y Colas</title>
+    <!-- Bootstrap 5.3 CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+        .card-stat {
+            border: none;
+            border-radius: 12px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .card-stat:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+        }
+        .board-container {
+            min-height: 380px;
+            max-height: 520px;
+            overflow-y: auto;
+            border-radius: 10px;
+            background: #ffffff;
+            border: 2px dashed #dee2e6;
+        }
+        .ticket-card {
+            border-left: 5px solid #0d6efd;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+        .ticket-card:hover {
+            box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+        }
+        .ticket-card.urgent {
+            border-left-color: #dc3545;
+            background-color: #fff8f8;
+        }
+        .ticket-card.history {
+            border-left-color: #198754;
+            background-color: #f9fdfa;
+        }
+        .ticket-card.top-stack {
+            border-left-color: #ffc107;
+            background-color: #fffdf5;
+        }
+        .toast-container {
+            z-index: 1080;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- BARRA SUPERIOR DE NAVEGACIÓN -->
+    <nav class="navbar navbar-dark bg-dark shadow-sm">
+        <div class="container-fluid px-4">
+            <span class="navbar-brand mb-0 h1 d-flex align-items-center gap-2">
+                <i class="bi bi-stack text-warning fs-4"></i>
+                <span class="fw-bold">Gestor de Solicitudes</span>
+                <span class="badge bg-secondary ms-2 fs-6">Pilas (LIFO) & Colas (FIFO)</span>
+            </span>
+            <div class="d-flex align-items-center gap-2 text-white-50">
+                <small><i class="bi bi-laptop me-1"></i> Programación Estructurada</small>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4 px-4">
+        
+        <!-- TARJETAS DE MÉTRICAS Y RESUMEN -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="card card-stat shadow-sm bg-primary text-white p-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="text-uppercase small fw-semibold text-white-50">En Cola (FIFO)</div>
+                            <div class="fs-2 fw-bold" id="metricTotalCola">0</div>
+                            <small id="metricCapacidad" class="text-white-50">Límite: 0 / 10</small>
+                        </div>
+                        <i class="bi bi-people fs-1 text-white-50"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card card-stat shadow-sm bg-success text-white p-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="text-uppercase small fw-semibold text-white-50">Atendidos (LIFO)</div>
+                            <div class="fs-2 fw-bold" id="metricTotalHistorial">0</div>
+                            <small class="text-white-50">Historial acumulado</small>
+                        </div>
+                        <i class="bi bi-check2-circle fs-1 text-white-50"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card card-stat shadow-sm bg-white p-3 border">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="text-uppercase small fw-semibold text-muted">Próximo en Turno</div>
+                            <div class="fs-5 fw-bold text-dark text-truncate" id="metricProximo" style="max-width: 190px;">Ninguno</div>
+                            <small class="text-primary"><i class="bi bi-arrow-right-circle me-1"></i> Frente de cola</small>
+                        </div>
+                        <i class="bi bi-person-fill-gear fs-1 text-muted"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card card-stat shadow-sm bg-white p-3 border">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="text-uppercase small fw-semibold text-muted">Último Atendido</div>
+                            <div class="fs-5 fw-bold text-dark text-truncate" id="metricUltimo" style="max-width: 190px;">Ninguno</div>
+                            <small class="text-warning"><i class="bi bi-arrow-counterclockwise me-1"></i> Tope de pila</small>
+                        </div>
+                        <i class="bi bi-clock-history fs-1 text-muted"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- PANEL LATERAL: FORMULARIO Y ACCIONES RÁPIDAS -->
+            <div class="col-lg-4">
+                
+                <!-- Formulario de Registro -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white border-bottom py-3">
+                        <h5 class="card-title mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                            <i class="bi bi-plus-circle text-primary"></i> Registrar Solicitud
+                        </h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <form id="formSolicitud" onsubmit="registrarSolicitud(event)">
+                            <div class="mb-3">
+                                <label for="inputCliente" class="form-label fw-semibold">Nombre del Cliente:</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-person"></i></span>
+                                    <input type="text" class="form-control" id="inputCliente" placeholder="Ej: Patricia Morales" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="inputDescripcion" class="form-label fw-semibold">Descripción de la Solicitud:</label>
+                                <textarea class="form-control" id="inputDescripcion" rows="2" placeholder="Ej: Error al generar factura electrónica..." required></textarea>
+                            </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" role="switch" id="checkUrgente">
+                                <label class="form-check-label fw-semibold text-danger" for="checkUrgente">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Solicitud Urgente (Prioridad al frente)
+                                </label>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary fw-semibold py-2">
+                                    <i class="bi bi-send me-1"></i> Encolar Solicitud
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Botonera de Acciones -->
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white border-bottom py-3">
+                        <h5 class="card-title mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                            <i class="bi bi-gear-wide-connected text-secondary"></i> Operaciones del Flujo
+                        </h5>
+                    </div>
+                    <div class="card-body p-4 d-grid gap-2">
+                        <button type="button" class="btn btn-success fw-semibold py-2" onclick="atenderSolicitud()">
+                            <i class="bi bi-play-circle-fill me-1"></i> Atender Siguiente (FIFO)
+                        </button>
+                        <button type="button" class="btn btn-warning text-dark fw-semibold py-2" onclick="deshacerAtencion()">
+                            <i class="bi bi-arrow-counterclockwise me-1"></i> Deshacer Última Atención (LIFO)
+                        </button>
+                        <hr class="my-2">
+                        <button type="button" class="btn btn-outline-danger fw-semibold py-2" onclick="reiniciarSistema()">
+                            <i class="bi bi-trash3 me-1"></i> Reiniciar Todo el Sistema
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- TABLERO VISUAL: COLA (FIFO) Y PILA (LIFO) -->
+            <div class="col-lg-8">
+                <div class="row g-3">
+                    
+                    <!-- Columna 1: Cola de Espera (FIFO) -->
+                    <div class="col-md-6">
+                        <div class="card shadow-sm border-0 h-100">
+                            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0 fw-bold text-primary d-flex align-items-center gap-2">
+                                    <i class="bi bi-arrow-right-square-fill"></i> Cola de Espera (FIFO)
+                                </h5>
+                                <span class="badge bg-primary rounded-pill" id="badgeColaCount">0</span>
+                            </div>
+                            <div class="card-body p-3">
+                                <div class="small text-muted mb-2 d-flex justify-content-between">
+                                    <span><i class="bi bi-caret-down-fill text-primary"></i> <strong>Frente</strong> (Sale primero)</span>
+                                    <span><strong>Final</strong> (Entra último) <i class="bi bi-caret-up-fill text-muted"></i></span>
+                                </div>
+                                <div id="containerCola" class="board-container p-3 d-flex flex-column gap-2">
+                                    <!-- Renderizado dinámico vía JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Columna 2: Historial de Atendidos (Pila LIFO) -->
+                    <div class="col-md-6">
+                        <div class="card shadow-sm border-0 h-100">
+                            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0 fw-bold text-success d-flex align-items-center gap-2">
+                                    <i class="bi bi-layers-fill"></i> Pila de Historial (LIFO)
+                                </h5>
+                                <span class="badge bg-success rounded-pill" id="badgeHistorialCount">0</span>
+                            </div>
+                            <div class="card-body p-3">
+                                <div class="small text-muted mb-2 d-flex justify-content-between">
+                                    <span><i class="bi bi-caret-up-fill text-warning"></i> <strong>Tope</strong> (Se deshará primero)</span>
+                                    <span><strong>Base</strong> (Primer atendido) <i class="bi bi-caret-down-fill text-muted"></i></span>
+                                </div>
+                                <div id="containerHistorial" class="board-container p-3 d-flex flex-column gap-2">
+                                    <!-- Renderizado dinámico vía JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- CONTENEDOR DE TOASTS PARA NOTIFICACIONES -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="liveToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body d-flex align-items-center gap-2" id="toastMessage">
+                    <!-- Mensaje dinámico -->
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5.3 JS Bundle CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- SCRIPT DE INTERACTIVIDAD ASÍNCRONA (FETCH API) -->
+    <script>
+        // Inicialización del Toast de Bootstrap
+        const toastEl = document.getElementById('liveToast');
+        const toast = new bootstrap.Toast(toastEl, { delay: 3500 });
+
+        function mostrarNotificacion(mensaje, tipo = 'primary') {
+            const toastMessage = document.getElementById('toastMessage');
+            toastEl.className = `toast align-items-center text-white border-0 bg-${tipo}`;
+            
+            let iconClass = 'bi-info-circle-fill';
+            if (tipo === 'success') iconClass = 'bi-check-circle-fill';
+            if (tipo === 'warning') iconClass = 'bi-exclamation-triangle-fill';
+            if (tipo === 'danger') iconClass = 'bi-x-circle-fill';
+
+            toastMessage.innerHTML = `<i class="bi ${iconClass} fs-5"></i> <span>${mensaje}</span>`;
+            toast.show();
+        }
+
+        // Obtener el estado actual del servidor
+        async function fetchEstado() {
+            try {
+                const res = await fetch('/api/estado');
+                if (!res.ok) throw new Error("Error al consultar el estado.");
+                const data = await res.json();
+                renderizarTablero(data);
+            } catch (err) {
+                console.error("Error en fetchEstado:", err);
+            }
+        }
+
+        // Renderizar la interfaz visual
+        function renderizarTablero(data) {
+            // Métricas
+            document.getElementById('metricTotalCola').textContent = data.total_cola;
+            document.getElementById('metricTotalHistorial').textContent = data.total_historial;
+            document.getElementById('metricCapacidad').textContent = `Límite: ${data.total_cola} / ${data.capacidad_maxima}`;
+            document.getElementById('badgeColaCount').textContent = data.total_cola;
+            document.getElementById('badgeHistorialCount').textContent = data.total_historial;
+
+            // Próximo y Último
+            const proximoEl = document.getElementById('metricProximo');
+            if (data.proxima_solicitud) {
+                proximoEl.textContent = `#${data.proxima_solicitud.id} - ${data.proxima_solicitud.cliente}`;
+                proximoEl.title = data.proxima_solicitud.descripcion;
+            } else {
+                proximoEl.textContent = 'Ninguno';
+                proximoEl.title = '';
+            }
+
+            const ultimoEl = document.getElementById('metricUltimo');
+            if (data.ultima_atendida) {
+                ultimoEl.textContent = `#${data.ultima_atendida.id} - ${data.ultima_atendida.cliente}`;
+                ultimoEl.title = data.ultima_atendida.descripcion;
+            } else {
+                ultimoEl.textContent = 'Ninguno';
+                ultimoEl.title = '';
+            }
+
+            // Renderizar Cola de Espera (FIFO)
+            const containerCola = document.getElementById('containerCola');
+            containerCola.innerHTML = '';
+
+            if (data.cola.length === 0) {
+                containerCola.innerHTML = `
+                    <div class="text-center text-muted m-auto py-5">
+                        <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                        <span>No hay solicitudes en espera.</span>
+                    </div>`;
+            } else {
+                data.cola.forEach((item, index) => {
+                    const card = document.createElement('div');
+                    const esUrgente = item.urgente;
+                    const esPrimero = (index === 0);
+
+                    card.className = `ticket-card p-3 shadow-sm border ${esUrgente ? 'urgent' : 'bg-light'}`;
+                    card.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <div>
+                                <span class="badge ${esUrgente ? 'bg-danger' : 'bg-primary'} me-1">#${item.id}</span>
+                                ${esPrimero ? '<span class="badge bg-warning text-dark"><i class="bi bi-star-fill me-1"></i>En Turno</span>' : ''}
+                                ${esUrgente ? '<span class="badge bg-danger"><i class="bi bi-lightning-fill me-1"></i>Urgente</span>' : ''}
+                            </div>
+                            <button class="btn btn-sm btn-outline-danger border-0 p-1" title="Cancelar solicitud" onclick="cancelarSolicitud(${item.id})">
+                                <i class="bi bi-x-circle fs-6"></i>
+                            </button>
+                        </div>
+                        <div class="fw-bold text-dark">${escapeHtml(item.cliente)}</div>
+                        <div class="small text-secondary mb-2">${escapeHtml(item.descripcion)}</div>
+                        <div class="d-flex justify-content-between small text-muted">
+                            <span><i class="bi bi-clock me-1"></i>${item.hora_registro}</span>
+                            <span>Posición: ${index + 1}</span>
+                        </div>
+                    `;
+                    containerCola.appendChild(card);
+                });
+            }
+
+            // Renderizar Pila de Historial (LIFO)
+            const containerHistorial = document.getElementById('containerHistorial');
+            containerHistorial.innerHTML = '';
+
+            if (data.historial.length === 0) {
+                containerHistorial.innerHTML = `
+                    <div class="text-center text-muted m-auto py-5">
+                        <i class="bi bi-journal-x fs-1 d-block mb-2 text-secondary"></i>
+                        <span>No se han atendido solicitudes aún.</span>
+                    </div>`;
+            } else {
+                data.historial.forEach((item, index) => {
+                    const card = document.createElement('div');
+                    const esTope = (index === 0);
+
+                    card.className = `ticket-card p-3 shadow-sm border ${esTope ? 'top-stack' : 'history'}`;
+                    card.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <div>
+                                <span class="badge bg-success me-1">#${item.id}</span>
+                                ${esTope ? '<span class="badge bg-warning text-dark"><i class="bi bi-arrow-up-circle-fill me-1"></i>Tope de Pila</span>' : ''}
+                            </div>
+                            <span class="badge bg-secondary-subtle text-dark small"><i class="bi bi-check-all me-1"></i>Atendido</span>
+                        </div>
+                        <div class="fw-bold text-dark">${escapeHtml(item.cliente)}</div>
+                        <div class="small text-secondary mb-2">${escapeHtml(item.descripcion)}</div>
+                        <div class="d-flex justify-content-between small text-muted">
+                            <span><i class="bi bi-check-circle me-1"></i>${item.hora_atencion || 'Atendido'}</span>
+                            <span>Historial #${data.historial.length - index}</span>
+                        </div>
+                    `;
+                    containerHistorial.appendChild(card);
+                });
+            }
+        }
+
+        // Operación: Registrar nueva solicitud
+        async function registrarSolicitud(e) {
+            e.preventDefault();
+            const cliente = document.getElementById('inputCliente').value.trim();
+            const descripcion = document.getElementById('inputDescripcion').value.trim();
+            const urgente = document.getElementById('checkUrgente').checked;
+
+            if (!cliente || !descripcion) {
+                mostrarNotificacion("Por favor completa todos los campos requeridos.", "warning");
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/solicitudes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cliente, descripcion, urgente })
+                });
+                const result = await res.json();
+
+                if (res.ok) {
+                    mostrarNotificacion(result.message, "success");
+                    document.getElementById('formSolicitud').reset();
+                    renderizarTablero(result.estado);
+                } else {
+                    mostrarNotificacion(result.message, "danger");
+                }
+            } catch (err) {
+                mostrarNotificacion("Error al conectar con el servidor.", "danger");
+            }
+        }
+
+        // Operación: Atender siguiente solicitud (FIFO)
+        async function atenderSolicitud() {
+            try {
+                const res = await fetch('/api/atender', { method: 'POST' });
+                const result = await res.json();
+
+                if (res.ok) {
+                    mostrarNotificacion(result.message, "success");
+                    renderizarTablero(result.estado);
+                } else {
+                    mostrarNotificacion(result.message, "warning");
+                }
+            } catch (err) {
+                mostrarNotificacion("Error al procesar la atención.", "danger");
+            }
+        }
+
+        // Operación: Deshacer última atención (LIFO)
+        async function deshacerAtencion() {
+            try {
+                const res = await fetch('/api/deshacer', { method: 'POST' });
+                const result = await res.json();
+
+                if (res.ok) {
+                    mostrarNotificacion(result.message, "primary");
+                    renderizarTablero(result.estado);
+                } else {
+                    mostrarNotificacion(result.message, "warning");
+                }
+            } catch (err) {
+                mostrarNotificacion("Error al deshacer la acción.", "danger");
+            }
+        }
+
+        // Operación: Cancelar solicitud específica
+        async function cancelarSolicitud(id) {
+            if (!confirm(`¿Deseas cancelar la solicitud pendiente #${id}?`)) return;
+
+            try {
+                const res = await fetch(`/api/solicitudes/${id}`, { method: 'DELETE' });
+                const result = await res.json();
+
+                if (res.ok) {
+                    mostrarNotificacion(result.message, "info");
+                    renderizarTablero(result.estado);
+                } else {
+                    mostrarNotificacion(result.message, "danger");
+                }
+            } catch (err) {
+                mostrarNotificacion("Error al cancelar la solicitud.", "danger");
+            }
+        }
+
+        // Operación: Reiniciar todo el sistema
+        async function reiniciarSistema() {
+            if (!confirm("¿Estás seguro de que deseas vaciar la cola y el historial por completo?")) return;
+
+            try {
+                const res = await fetch('/api/reiniciar', { method: 'POST' });
+                const result = await res.json();
+
+                if (res.ok) {
+                    mostrarNotificacion(result.message, "secondary");
+                    renderizarTablero(result.estado);
+                } else {
+                    mostrarNotificacion(result.message, "danger");
+                }
+            } catch (err) {
+                mostrarNotificacion("Error al reiniciar el sistema.", "danger");
+            }
+        }
+
+        // Función de escape para prevenir XSS en frontend
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Cargar el estado inicial al entrar a la página
+        fetchEstado();
+    </script>
+</body>
+</html>
